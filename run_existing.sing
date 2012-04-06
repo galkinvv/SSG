@@ -41,6 +41,25 @@ proc smul_less(lpmul p1, lpmul p2)
 	return (l1<l2);
 }
 
+proc insert_in_sorted_list_with_pos(list sorted_list, def new_elem, string comp_func)
+{
+	int pos=0;
+	while (pos < size(sorted_list))
+	{
+		execute("int compare_result="+comp_func+"(new_elem, sorted_list[pos+1])");
+		if (compare_result) break;
+		pos++;
+	}
+	return(insert(sorted_list, new_elem, pos), pos+1);
+}
+proc insert_in_sorted_list(list sorted_list, def new_elem, string comp_func)
+{
+	list result;
+	int pos_unused;
+	result, pos_unused = insert_in_sorted_list_with_pos(sorted_list, new_elem, comp_func);
+	return(result);
+}
+
 proc ssg_sing(ideal I)
 {
 	proc create_lp(poly s, poly p)
@@ -58,24 +77,14 @@ proc ssg_sing(ideal I)
 		result.p = sp.p;
 		return(result);
 	}
-	proc insert_in_sorted_list(list sorted_list, def new_elem, string comp_func)
-	{
-		int pos=0;
-		while (pos < size(sorted_list))
-		{
-			execute("int compare_result="+comp_func+"(new_elem, sorted_list[pos+1])");
-			if (compare_result) break;
-			pos++;
-		}
-		return(insert(sorted_list, new_elem, pos));
-	}
-	proc divisible(poly mon1, poly mon2)
-	{
-		return (reduce(mon1, mon2) == 0)
-	}
 	proc norm_leadcoef(poly p)
 	{
 		return(simplify(p,1));
+	}
+	proc check_b_elem_full(lpmul b_elem, lp r_elem)
+	{
+		if (gvw_less(r_elem,b_elem) == 0) {return (0)};
+		return (b_elem.smuled/r_elem.s != 0);
 	}
 	int zero_reductions = 0;
 	ideal I0 = I[1];
@@ -87,7 +96,7 @@ proc ssg_sing(ideal I)
 		list B;
 		for (int n0 = 1; n0 <= size(I0); n0++)
 		{
-			R = R + list(create_lp(0,norm_leadcoef(I0[n0])));
+			R = list(create_lp(leadmonom(I0[n0]), 0)) + R + list(create_lp(0,norm_leadcoef(I0[n0])));
 		}
 		while(1)
 		{
@@ -116,48 +125,85 @@ proc ssg_sing(ideal I)
 				if (p.p == 0)
 				{
 					reduced_to_zero = 1;
+					zero_reductions++;
 					break;
 				}
 			}
 			//print("inserting " + string(p));
 			//print("reduced_to_zero = " + string(reduced_to_zero));
-			R = insert_in_sorted_list(R, p, "gvw_less");
+			int insert_position = -1;
+			R,insert_position = insert_in_sorted_list_with_pos(R, p, "gvw_less");
+			int nb = 1;
+			while (nb <= size(B))
+			{
+				lpmul b = B[nb];
+				if (check_b_elem_full(b, p))
+				{
+					B = delete(B, nb);						
+				}
+				else
+				{
+					nb++;
+				}
+			}
 			if (reduced_to_zero == 0)
 			{
 				poly plead = leadmonom(p.p);
-				for (int n0 = size(R); n0 >=1; n0--)
+				for (int n0 = size(R); n0 > insert_position; n0--)
 				{
 					lp rn = R[n0];					
 					if (gvw_less(p,rn) == 0) {break;}
 					poly l2 = leadmonom(rn.p);
-					B = insert_in_sorted_list(B, create_lpmul(l2/gcd(l2,plead),p), "smul_less");
+					lpmul b_new = create_lpmul(l2/gcd(l2,plead),p);
+					for (int nr_2 = 1; nr_2 < n0; nr_2++)
+					{
+						lp rn2 = R[nr_2];
+						if (rn2.s == 0)
+						{
+							break;
+						}
+						if (b_new.smuled/rn2.s == 0)
+						{
+							nr_2++;
+							continue;
+						}
+						if (gvw_less(rn2,b_new) != 0)
+						{
+							b_new.smuled = poly(0);
+							break;
+						}
+					}
+					if (b_new.smuled != 0)
+					{
+						B = insert_in_sorted_list(B, b_new, "smul_less");
+					}
 				}
-				for (int n0 = 1; n0 <= size(R); n0++)
+				for (int n0 = 1; n0 < insert_position; n0++)
 				{
 					lp rn = R[n0];
 					if (gvw_less(rn,p) == 0) {break;}
 					if (rn.p == 0) {n0++; continue;}
 					poly l2 = leadmonom(rn.p);
-					B = insert_in_sorted_list(B, create_lpmul(plead/gcd(l2,plead),rn), "smul_less");
-				}
-			}
-			//print("B_prev = " + string(B));
-			int nb = 1;
-			while (nb <= size(B))
-			{
-				lpmul b = B[nb];
-				for (int n0 = 1; n0 <= size(R); n0++)
-				{
-					lp rn = R[n0];					
-					if (gvw_less(rn,b) == 0) {break;}
-					if (divisible(b.smuled, rn.s))
+					lpmul b_new = create_lpmul(plead/gcd(l2,plead),rn);
+					for (int nr_2 = 1; nr_2 < n0; nr_2++)
 					{
-						B = delete(B, nb);						
-						nb--;//Потом увеличится назад
-						break;
+						lp rn2 = R[nr_2];
+						if (b_new.smuled/rn2.s == 0)
+						{
+							nr_2++;
+							continue;
+						}
+						if (gvw_less(rn2,b_new) != 0)
+						{
+							b_new.smuled = poly(0);
+							break;
+						}
+s					}
+					if (b_new.smuled != 0)
+					{
+						B = insert_in_sorted_list(B, b_new, "smul_less");
 					}
 				}
-				nb++;
 			}
 			if (size(B) == 0) break;
 			lpmul bs_premul = B[1];
@@ -167,8 +213,7 @@ proc ssg_sing(ideal I)
 		for (int n0 = 1; n0 <= size(R); n0++)
 		{
 			lp rn = R[n0];
-			if (rn.p == 0){zero_reductions++;}
-			else {result = result + rn.p;}
+			if (rn.p != 0) {result = result + rn.p;}
 		}
 		I0 = result;
 	}
@@ -187,9 +232,9 @@ proc simple_test_ideal()
 }
 
 
-string basic_ideal="cyclicn(5)";
-//string basic_ideal="simple_test_ideal()";
-test_kgb(basic_ideal, "sba(i,0,1)");
+//string basic_ideal="cyclicn(6)";
+string basic_ideal="katsuranh(8)";
+//test_kgb(basic_ideal, "sba(i,0,1)");
 test_kgb(basic_ideal, "sba(i,0,0)");
 test_kgb(basic_ideal, "sba(i,1,0)");
 test_kgb(basic_ideal, "ssg_sing(i)");
