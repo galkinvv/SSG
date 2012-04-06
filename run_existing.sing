@@ -26,19 +26,15 @@ proc test_kgb(string bench_call, string gb_call)
 	printf("saved");
 }
 
-newstruct("lp","poly s, poly p");
+newstruct("lp","poly s, poly p, poly lm");
 newstruct("lpmul","lp","poly smuled");
 proc gvw_less(lp p1, lp p2)
 {
-	poly l1 = leadmonom(p1.p)*p2.s;
-	poly l2 = leadmonom(p2.p)*p1.s;
-	return (l1<l2);
+	return (p1.lm*p2.s<p2.lm*p1.s);
 }
 proc smul_less(lpmul p1, lpmul p2)
 {
-	poly l1 = p1.smuled;
-	poly l2 = p2.smuled;
-	return (l1<l2);
+	return (p1.smuled<p2.smuled);
 }
 
 proc insert_in_sorted_list_with_pos(list sorted_list, def new_elem, string comp_func, int min_pos, int max_pos)
@@ -69,6 +65,24 @@ proc insert_in_sorted_list(list sorted_list, def new_elem, string comp_func)
 	return(result);
 }
 
+proc filter_gb_result(ideal gb)
+{
+	ideal result;
+	for(int i = 1; i <= size(gb); i++)
+	{
+		poly lm = leadmonom(gb[i]);
+		for(int ir = 1; ir <= size(gb); ir++)
+		{
+			if (lm/leadmonom(gb[ir]) > 1)
+			{
+				lm = poly(0);
+				break;
+			}		
+		}	
+		if (lm != 0) {result = result + gb[i];}
+	}
+	return(result);
+}
 proc ssg_sing(ideal I)
 {
 	proc create_lp(poly s, poly p)
@@ -76,6 +90,7 @@ proc ssg_sing(ideal I)
 		lp result;
 		result.s = s;
 		result.p = p;
+		result.lm = leadmonom(p);
 		return(result);
 	}
 	proc create_lpmul(poly mul_by, lp sp)
@@ -84,22 +99,18 @@ proc ssg_sing(ideal I)
 		result.smuled = sp.s*mul_by;
 		result.s = sp.s;
 		result.p = sp.p;
+		result.lm = sp.lm;
 		return(result);
 	}
 	proc norm_leadcoef(poly p)
 	{
 		return(simplify(p,1));
 	}
-	proc check_b_elem_full(lpmul b_elem, lp r_elem)
-	{
-		if (gvw_less(r_elem,b_elem) == 0) {return (0)};
-		return (b_elem.smuled/r_elem.s != 0);
-	}
 	int zero_reductions = 0;
 	ideal I0 = I[1];
 	for (int n = 2; n <= size(I); n++)
 	{
-		I0 = interred(I0);
+		I0 = filter_gb_result(I0);
 		lp p = create_lp(1,I[n]);
 		list R;
 		list B;
@@ -114,13 +125,13 @@ proc ssg_sing(ideal I)
 			while(1)
 			{
 				lp reductor;
-				poly plead = leadmonom(p.p);
+				poly plead = p.lm;
 				poly div_result = 0;
 				for (int n0 = size(R); n0 >=1 ; n0--)
 				{
 					lp rn = R[n0];
 					if (n0 < min_used_reductor){if (gvw_less(p,rn) == 0) {break;}}
-					div_result = plead/leadmonom(rn.p);
+					div_result = plead/rn.lm;
 					if (div_result!=0)
 					{
 						reductor = rn;
@@ -130,6 +141,7 @@ proc ssg_sing(ideal I)
 				}	 	
 				if (reductor.p == 0) {break;}
 				p.p = norm_leadcoef(p.p-div_result*reductor.p);
+				p.lm = leadmonom(p.p);
 				if (p.p == 0)
 				{
 					reduced_to_zero = 1;
@@ -140,36 +152,51 @@ proc ssg_sing(ideal I)
 			int insert_position = -1;
 			R,insert_position = insert_in_sorted_list_with_pos(R, p, "gvw_less", 0, min_used_reductor);
 			int nb = 1;
+			poly psig = p.s;
+			poly plead = p.lm;
 			while (nb <= size(B))
 			{
 				lpmul b = B[nb];
-				if (check_b_elem_full(b, p))
+				
+				if (b.smuled/psig == 0)
 				{
-					B = delete(B, nb);						
+					nb++;
 				}
 				else
 				{
-					nb++;
+					if (reduced_to_zero == 1)
+					{
+						B = delete(B, nb);
+					}
+					else
+					{
+						poly l1 = plead*b.s;
+						poly l2 = b.lm*psig;
+
+						if (l1<l2)
+						{
+							B = delete(B, nb);						
+						}
+						else
+						{
+							nb++;
+						}
+					}
 				}
 			}
 			if (reduced_to_zero == 0)
 			{
-				poly plead = leadmonom(p.p);
 				for (int n0 = size(R); n0 > insert_position; n0--)
 				{
 					lp rn = R[n0];					
 					if (gvw_less(p,rn) == 0) {break;}
-					poly l2 = leadmonom(rn.p);
+					poly l2 = rn.lm;
 					lpmul b_new = create_lpmul(l2/gcd(l2,plead),p);
+					poly b_new_sig =  b_new.smuled;
 					for (int nr_2 = 1; nr_2 < insert_position; nr_2++)
 					{
 						lp rn2 = R[nr_2];
-						if (b_new.smuled/rn2.s == 0)
-						{
-							nr_2++;
-							continue;
-						}
-						if (gvw_less(rn2,b_new) != 0)
+						if (b_new_sig/rn2.s != 0)
 						{
 							b_new.smuled = poly(0);
 							break;
@@ -185,22 +212,18 @@ proc ssg_sing(ideal I)
 					lp rn = R[n0];
 					if (gvw_less(rn,p) == 0) {break;}
 					if (rn.p == 0) {n0++; continue;}
-					poly l2 = leadmonom(rn.p);
+					poly l2 = rn.lm;
 					lpmul b_new = create_lpmul(plead/gcd(l2,plead),rn);
+					poly b_new_sig =  b_new.smuled;
 					for (int nr_2 = 1; nr_2 < n0; nr_2++)
 					{
 						lp rn2 = R[nr_2];
-						if (b_new.smuled/rn2.s == 0)
-						{
-							nr_2++;
-							continue;
-						}
-						if (gvw_less(rn2,b_new) != 0)
+						if (b_new_sig/rn2.s != 0)
 						{
 							b_new.smuled = poly(0);
 							break;
 						}
-s					}
+					}
 					if (b_new.smuled != 0)
 					{
 						B = insert_in_sorted_list(B, b_new, "smul_less");
@@ -234,8 +257,8 @@ proc simple_test_ideal()
 }
 
 
-//string basic_ideal="cyclicn(6)";
-string basic_ideal="katsuran(9)";
+string basic_ideal="cyclicn(7)";
+//string basic_ideal="katsuran(9)";
 //test_kgb(basic_ideal, "sba(i,0,1)");
 test_kgb(basic_ideal, "sba(i,0,0)");
 test_kgb(basic_ideal, "sba(i,1,0)");
