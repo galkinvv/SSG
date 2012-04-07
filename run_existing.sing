@@ -11,7 +11,7 @@ proc test_kgb(string bench_call, string gb_call)
 	execute("string defs = " + bench_call);
 	execute(defs);
 	string uniq_name = bench_name+"_by_"+gb_call;
-	sprintf("--- "+uniq_name+"---");
+	sprintf("--- "+uniq_name+" ---");
 	int ot0 = timer;
 	execute("ideal f =" + gb_call);
 	int ot1 = timer;
@@ -23,7 +23,9 @@ proc test_kgb(string bench_call, string gb_call)
 	printf(info);
 	link save = "ASCII:w res/" + uniq_name;
 	write(save,f_reduced);
-	printf("saved");
+	link save_info = "ASCII:w res/" + uniq_name+".timings";
+	write(save_info,info);
+	printf("result saved.");	
 }
 
 newstruct("lp","poly s, poly p, poly lm");
@@ -300,9 +302,10 @@ proc fb(string bench_name)
 	return("get_from_benchs(\""+bench_name_result+"\")");
 }
 
-string basic_ideal=fb("cyclicn(5)");
-//string basic_ideal=fb("katsuran(7)");
-//string basic_ideal="simple_test_ideal()";
+string basic_ideal;
+//basic_ideal=fb("cyclicn(5)");
+basic_ideal=fb("katsuran(7)");
+//basic_ideal="simple_test_ideal()";
 //test_kgb(basic_ideal, "sba(i,0,1)");
 test_kgb(basic_ideal, "sba(i,0,0)");
 test_kgb(basic_ideal, "sba(i,1,0)");
