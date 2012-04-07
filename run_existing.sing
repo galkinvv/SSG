@@ -3,7 +3,6 @@ system("--min-time", "0.001");
 system("--ticks-per-sec", 1000);
 option(noredefine);
 option(redSB);
-LIB "benchs.lib";
 
 string NL = "
 ";
@@ -11,7 +10,8 @@ proc test_kgb(string bench_call, string gb_call)
 {
 	string uniq_name = bench_call+"_by_"+gb_call;
 	sprintf("--- "+uniq_name+"---");
-	execute(bench_call)
+	execute("string defs = " + bench_call);
+	execute(defs);
 	int ot0 = timer;
 	execute("ideal f =" + gb_call);
 	int ot1 = timer;
@@ -28,6 +28,7 @@ proc test_kgb(string bench_call, string gb_call)
 
 newstruct("lp","poly s, poly p, poly lm");
 newstruct("lpmul","lp","poly smuled");
+
 proc gvw_less(lp p1, lp p2)
 {
 	return (p1.lm*p2.s<p2.lm*p1.s);
@@ -83,8 +84,19 @@ proc filter_gb_result(ideal gb)
 	}
 	return(result);
 }
-proc ssg_sing(ideal I)
+
+int prev_time = 0;
+proc time_from_last_call()
 {
+	int new_time = timer;
+	int result = new_time - prev_time;
+	prev_time = new_time;
+	return (result);
+}
+
+proc ssg_sing(ideal I_input)
+{
+	int time_interred, time_prepare, time_reduction_search, time_reduction, time_add_r, time_filter_b, time_add_b1, time_add_b2;
 	proc create_lp(poly s, poly p)
 	{
 		lp result;
@@ -107,17 +119,21 @@ proc ssg_sing(ideal I)
 		return(simplify(p,1));
 	}
 	int zero_reductions = 0;
-	ideal I0 = I[1];
-	for (int n = 2; n <= size(I); n++)
+	ideal I0 = I_input[1];
+	for (int n = 2; n <= size(I_input); n++)
 	{
+		int unused = time_from_last_call();
 		I0 = filter_gb_result(I0);
-		lp p = create_lp(1,I[n]);
+		time_interred = time_interred + time_from_last_call();
+		lp p = create_lp(1,I_input[n]);
 		list R;
 		list B;
+		
 		for (int n0 = 1; n0 <= size(I0); n0++)
 		{
 			R = list(create_lp(leadmonom(I0[n0]), 0)) + R + list(create_lp(0,norm_leadcoef(I0[n0])));
 		}
+		time_prepare = time_prepare + time_from_last_call();
 		while(1)
 		{
 			int reduced_to_zero = 0;
@@ -138,10 +154,12 @@ proc ssg_sing(ideal I)
 						min_used_reductor = n0;
 						break;
 					}
-				}	 	
+				}
+				time_reduction_search = time_reduction_search + time_from_last_call();
 				if (reductor.p == 0) {break;}
 				p.p = norm_leadcoef(p.p-div_result*reductor.p);
 				p.lm = leadmonom(p.p);
+				time_reduction = time_reduction + time_from_last_call();
 				if (p.p == 0)
 				{
 					reduced_to_zero = 1;
@@ -151,6 +169,7 @@ proc ssg_sing(ideal I)
 			}
 			int insert_position = -1;
 			R,insert_position = insert_in_sorted_list_with_pos(R, p, "gvw_less", 0, min_used_reductor);
+			time_add_r = time_add_r + time_from_last_call();
 			int nb = 1;
 			poly psig = p.s;
 			poly plead = p.lm;
@@ -184,6 +203,7 @@ proc ssg_sing(ideal I)
 					}
 				}
 			}
+			time_filter_b = time_filter_b + time_from_last_call();
 			if (reduced_to_zero == 0)
 			{
 				for (int n0 = size(R); n0 > insert_position; n0--)
@@ -207,6 +227,7 @@ proc ssg_sing(ideal I)
 						B = insert_in_sorted_list(B, b_new, "smul_less");
 					}
 				}
+				time_add_b1 = time_add_b1 + time_from_last_call();
 				for (int n0 = 1; n0 < insert_position; n0++)
 				{
 					lp rn = R[n0];
@@ -229,6 +250,7 @@ proc ssg_sing(ideal I)
 						B = insert_in_sorted_list(B, b_new, "smul_less");
 					}
 				}
+				time_add_b2 = time_add_b2 + time_from_last_call();
 			}
 			if (size(B) == 0) break;
 			lpmul bs_premul = B[1];
@@ -242,27 +264,55 @@ proc ssg_sing(ideal I)
 		}
 		I0 = result;
 	}
+
+	printf("time time_interred = %s", time_interred);
+	printf("time time_prepare = %s", time_prepare);
+	printf("time time_reduction_search = %s", time_reduction_search);
+	printf("time time_reduction = %s", time_reduction);
+	printf("time time_add_r = %s", time_add_r);
+	printf("time time_filter_b = %s", time_filter_b);
+	printf("time time_add_b1 = %s", time_add_b1);
+	printf("time time_add_b2 = %s", time_add_b2);
+
 	printf("ZERO REDUCTIONS: %s", zero_reductions);
 	return(I0);
 }
 
+
 proc simple_test_ideal()
 {
-
-  ring R;
-
-  ideal i=x*y+x,x*x,y;
-  export(R);
-  export(i);
+    return ("ring R; ideal i=x*y+x,x*x,y;")
 }
 
+proc get_from_benchs(string bench_name)
+{
+	return(bench_ringdef + bench_idealdef);
+}
 
-string basic_ideal="cyclicn(7)";
-//string basic_ideal="katsuran(9)";
+proc fb(string bench_name)
+{
+	LIB("benchs.lib");
+	execute(bench_name);
+	string bench_idealdef = "ideal i = " + string(i)+";";
+	string bench_ringdef = "ring R = ("+charstr(basering)+"),("+varstr(basering)+"),("+ordstr(basering)+");";
+	export(bench_ringdef);
+	export(bench_idealdef);
+	return("get_from_benchs(\""+bench_name+"\")");
+}
+
+string basic_ideal=fb("cyclicn(5)");
+//string basic_ideal=fb("katsuran(7)");
+//string basic_ideal="simple_test_ideal()";
 //test_kgb(basic_ideal, "sba(i,0,1)");
 test_kgb(basic_ideal, "sba(i,0,0)");
 test_kgb(basic_ideal, "sba(i,1,0)");
 test_kgb(basic_ideal, "ssg_sing(i)");
+test_kgb(basic_ideal, "sba(i,0,0)");
+test_kgb(basic_ideal, "sba(i,1,0)");
+
+//test_kgb("katsuran(11)", "sba(i,0,0)");
+//test_kgb("katsuran(11)", "sba(i,1,0)");
+//test_kgb("katsuran(11)", "ssg_sing(i)");
 //test_kgb(basic_ideal, "sba(i,1,1)");
 $
 	
