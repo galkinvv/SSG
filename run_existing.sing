@@ -8,10 +8,10 @@ string NL = "
 ";
 proc test_kgb(string bench_call, string gb_call)
 {
-	string uniq_name = bench_call+"_by_"+gb_call;
-	sprintf("--- "+uniq_name+"---");
 	execute("string defs = " + bench_call);
 	execute(defs);
+	string uniq_name = bench_name+"_by_"+gb_call;
+	sprintf("--- "+uniq_name+"---");
 	int ot0 = timer;
 	execute("ideal f =" + gb_call);
 	int ot1 = timer;
@@ -281,23 +281,23 @@ proc ssg_sing(ideal I_input)
 
 proc simple_test_ideal()
 {
-    return ("ring R; ideal i=x*y+x,x*x,y;")
+    return ("ring R; ideal i=x*y+x,x*x,y;bench_name = \"SIMPLE-TEST\"")
 }
 
 proc get_from_benchs(string bench_name)
 {
-	return(bench_ringdef + bench_idealdef);
+	return(bench_ringdef + bench_idealdef+"string bench_name = \""+bench_name+"\";");
 }
 
 proc fb(string bench_name)
 {
 	LIB("benchs.lib");
-	execute(bench_name);
+	execute("string bench_name_result = " + bench_name);
 	string bench_idealdef = "ideal i = " + string(i)+";";
 	string bench_ringdef = "ring R = ("+charstr(basering)+"),("+varstr(basering)+"),("+ordstr(basering)+");";
 	export(bench_ringdef);
 	export(bench_idealdef);
-	return("get_from_benchs(\""+bench_name+"\")");
+	return("get_from_benchs(\""+bench_name_result+"\")");
 }
 
 string basic_ideal=fb("cyclicn(5)");
