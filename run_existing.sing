@@ -138,11 +138,30 @@ proc ssg_sing(ideal I_input)
 		
 		for (int n0 = 1; n0 <= size(I0); n0++)
 		{
-			R = list(create_lp(leadmonom(I0[n0]), 0)) + R + list(create_lp(0,norm_leadcoef(I0[n0])));
+			R = /*list(create_lp(leadmonom(I0[n0]), 0))))) +*/ R + list(create_lp(0,norm_leadcoef(I0[n0])));
 		}
 		time_prepare = time_prepare + time_from_last_call();
 		while(1)
 		{
+			if (n == size(I_input))
+			{
+				print("");
+				print("R = ");
+				for (int i=1;i<=size(R);i++)
+				{
+					lp ri = R[i];
+					printf("p = %s",ri.p);
+					printf("s = %s",ri.s);
+				}
+				print("B = ");
+				for (int i=1;i<=size(B);i++)
+				{
+					lpmul bi = B[i];
+					printf("smuled = %s",bi.smuled);
+					printf("s = %s",bi.s);
+				}
+			}
+
 			int reduced_to_zero = 0;
 			int min_used_reductor = size(R);
 			while(1)
@@ -262,6 +281,7 @@ proc ssg_sing(ideal I_input)
 			}
 			if (size(B) == 0) break;
 			lpmul bs_premul = B[1];
+			B = delete(B,1);
 			p = create_lp(bs_premul.smuled, bs_premul.p*(bs_premul.smuled/bs_premul.s));			
 		}
 		ideal result;
@@ -299,12 +319,13 @@ proc simple_test_ideal()
 
 proc C5_mod()
 {
-    return ("ring R = (32003),(x(0),x(1),x(2),x(3),x(4)),(dp(5),C); ideal i = 
-		x(0)+x(1)+x(2)+x(3)+x(4),
-		x(0)*x(1)+x(1)*x(2)+x(2)*x(3)+x(0)*x(4)+x(3)*x(4),
-		x(0)*x(1)*x(2)*x(3)+x(0)*x(1)*x(2)*x(4)+x(0)*x(1)*x(3)*x(4)+x(0)*x(2)*x(3)*x(4)+x(1)*x(2)*x(3)*x(4),
-		x(0)*x(1)*x(2)
+    return ("ring R = (2),(x,y,z,t),dp; ideal i = 
+		xz+x+y,
+		t*(xt+yt+y+t),
+		x
 		; string bench_name = \"C5_mod\";")
+		//		x(0)*x(1)*x(2)
+
 }
 
 proc get_from_benchs(string bench_name)
