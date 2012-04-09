@@ -143,6 +143,7 @@ proc ssg_sing(ideal I_input)
 		time_prepare = time_prepare + time_from_last_call();
 		while(1)
 		{
+/*
 			if (n == size(I_input))
 			{
 				print("");
@@ -161,7 +162,7 @@ proc ssg_sing(ideal I_input)
 					printf("s = %s",bi.s);
 				}
 			}
-
+*/
 			int reduced_to_zero = 0;
 			int min_used_reductor = size(R);
 			while(1)
@@ -342,20 +343,21 @@ proc fb(string bench_name)
 	export(bench_ringdef);
 	export(bench_idealdef);
 	bench_idealdef;
-	bench_ringdef;
 	return("get_from_benchs(\""+bench_name_result+"\")");
 }
 
 string basic_ideal;
-basic_ideal=fb("cyclicn(5)");
-//basic_ideal=fb("katsuran(9)");
+basic_ideal=fb("cyclicn(6)");
+//basic_ideal=fb("econ(10)");
+//basic_ideal=fb("katsuran(11)");
 //basic_ideal=fb("noon8()");
 //basic_ideal="simple_test_ideal()";
-basic_ideal="C5_mod()";
+//basic_ideal="C5_mod()";
 //test_kgb(basic_ideal, "sba(i,0,1)");
+//test_kgb(basic_ideal, "sba(i,1,0)");
+//test_kgb(basic_ideal, "sba(i,0,0)");
+//test_kgb(basic_ideal, "sba(i,1,1)");
 test_kgb(basic_ideal, "ssg_cpp(i)");
-test_kgb(basic_ideal, "sba(i,0,0)");
-test_kgb(basic_ideal, "sba(i,1,0)");
 test_kgb(basic_ideal, "ssg_sing(i)");
 //test_kgb(basic_ideal, "sba(i,0,0)");
 //test_kgb(basic_ideal, "sba(i,1,0)");
