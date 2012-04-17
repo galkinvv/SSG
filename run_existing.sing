@@ -103,7 +103,7 @@ proc time_from_last_call()
 
 proc ssg_sing(ideal I_input)
 {
-	int time_interred, time_prepare, time_reduction_search, time_reduction, time_add_r, time_filter_b, time_add_b1_testings, time_add_b1_insertion, time_add_b2;
+	int time_interred, time_prepare, time_reduction_search, time_reduction, time_add_r, time_filter_b, time_filter_b2, time_add_b1_testings, time_add_b1_insertion, time_add_b2;
 	proc create_lp(poly s, poly p)
 	{
 		lp result;
@@ -235,9 +235,64 @@ proc ssg_sing(ideal I_input)
 			R,insert_position = insert_in_sorted_list_with_pos(R, p, "gvw_less", 0, min_used_reductor);
 			time_add_r = time_add_r + time_from_last_call();
 			B = filter_B(p, B, reduced_to_zero);
+			poly psig = p.s;
+			poly plead = p.lm;
 			time_filter_b = time_filter_b + time_from_last_call();
 			if (reduced_to_zero == 0)
 			{
+				int use_g_syzygy = 0;
+				if (use_g_syzygy == 1)
+				{
+					list all_new_R;
+					for (int n0 = size(R); n0 > insert_position; n0--)
+					{
+						lp rn = R[n0];
+						if (gvw_less(p,rn) == 0) {break;}
+						poly l2lead = rn.lm;
+						lp r_new = create_lp(l2lead*psig, 0);
+						int filter_out = 0;
+						for (int n2 = 1; n2 < insert_position; n2++)
+						{
+							lp r2 = R[n2];
+							if (r2.p != 0) {break;}
+							if (r_new.s/r2.s != 0){filter_out = 1; break;}
+						}
+						for (int n2 = 1; n2 < size(all_new_R) && filter_out == 0; n2++)
+						{
+							lp r2 = all_new_R[n2];
+							if (r_new.s/r2.s != 0){filter_out = 1; break;}
+						}
+						if (filter_out == 1) {n0--; continue;}
+						B = filter_B(r_new, B, 1);
+						all_new_R = list(r_new) + all_new_R;
+					}
+					for (int n0 = 1; n0 < insert_position; n0++)
+					{
+						lp rn = R[n0];
+						if (gvw_less(rn,p) == 0) {break;}
+						if (rn.p == 0) {n0++; continue;}
+						poly l2s = rn.s;
+						lp r_new = create_lp(plead*l2s,0);
+						int filter_out = 0;
+						for (int n2 = 1; n2 < insert_position; n2++)
+						{
+							lp r2 = R[n2];
+							if (r2.p != 0) {break;}
+							if (r_new.s/r2.s != 0){filter_out = 1; break;}
+						}
+						for (int n2 = 1; n2 < size(all_new_R) && filter_out == 0; n2++)
+						{
+							lp r2 = all_new_R[n2];
+							if (r_new.s/r2.s != 0){filter_out = 1; break;}
+						}
+						if (filter_out == 1) {n0++; continue; }
+						B = filter_B(r_new, B, 1);
+						all_new_R = list(r_new) + all_new_R;
+					}
+					insert_position = insert_position + size(all_new_R);
+					R = all_new_R + R;
+					time_filter_b2 = time_filter_b2 + time_from_last_call();
+				}
 				for (int n0 = size(R); n0 > insert_position; n0--)
 				{
 					lp rn = R[n0];					
@@ -305,6 +360,7 @@ proc ssg_sing(ideal I_input)
 	printf("time time_reduction = %s", time_reduction);
 	printf("time time_add_r = %s", time_add_r);
 	printf("time time_filter_b = %s", time_filter_b);
+	printf("time time_filter_b2 = %s", time_filter_b2);
 	printf("time time_add_b1_testings = %s", time_add_b1_testings);
 	printf("time time_add_b1_insertion = %s", time_add_b1_insertion);
 	printf("time time_add_b2 = %s", time_add_b2);
