@@ -125,6 +125,43 @@ proc ssg_sing(ideal I_input)
 	{
 		return(simplify(p,1));
 	}
+	proc filter_B(lp p, list B, int reduced_to_zero)
+	{
+		int nb = 1;
+		poly psig = p.s;
+		poly plead = p.lm;
+		while (nb <= size(B))
+		{
+			lpmul b = B[nb];
+
+			if (b.smuled/psig == 0)
+			{
+				nb++;
+			}
+			else
+			{
+				if (reduced_to_zero == 1)
+				{
+					B = delete(B, nb);
+				}
+				else
+				{
+					poly l1 = plead*b.s;
+					poly l2 = b.lm*psig;
+
+					if (l1<l2)
+					{
+						B = delete(B, nb);
+					}
+					else
+					{
+						nb++;
+					}
+				}
+			}
+		}
+		return(B);
+	}
 	int zero_reductions = 0;
 	ideal I0 = I_input[1];
 	for (int n = 2; n <= size(I_input); n++)
@@ -138,7 +175,7 @@ proc ssg_sing(ideal I_input)
 		
 		for (int n0 = 1; n0 <= size(I0); n0++)
 		{
-			R = /*list(create_lp(leadmonom(I0[n0]), 0))))) +*/ R + list(create_lp(0,norm_leadcoef(I0[n0])));
+			R = list(create_lp(leadmonom(I0[n0]), 0)) + R + list(create_lp(0,norm_leadcoef(I0[n0])));
 		}
 		time_prepare = time_prepare + time_from_last_call();
 		while(1)
@@ -197,39 +234,7 @@ proc ssg_sing(ideal I_input)
 			int insert_position = -1;
 			R,insert_position = insert_in_sorted_list_with_pos(R, p, "gvw_less", 0, min_used_reductor);
 			time_add_r = time_add_r + time_from_last_call();
-			int nb = 1;
-			poly psig = p.s;
-			poly plead = p.lm;
-			while (nb <= size(B))
-			{
-				lpmul b = B[nb];
-				
-				if (b.smuled/psig == 0)
-				{
-					nb++;
-				}
-				else
-				{
-					if (reduced_to_zero == 1)
-					{
-						B = delete(B, nb);
-					}
-					else
-					{
-						poly l1 = plead*b.s;
-						poly l2 = b.lm*psig;
-
-						if (l1<l2)
-						{
-							B = delete(B, nb);						
-						}
-						else
-						{
-							nb++;
-						}
-					}
-				}
-			}
+			B = filter_B(p, B, reduced_to_zero);
 			time_filter_b = time_filter_b + time_from_last_call();
 			if (reduced_to_zero == 0)
 			{
@@ -348,7 +353,7 @@ proc fb(string bench_name)
 
 string basic_ideal;
 basic_ideal=fb("cyclicn(6)");
-//basic_ideal=fb("econ(10)");
+//basic_ideal=fb("f855()");
 //basic_ideal=fb("katsuran(11)");
 //basic_ideal=fb("noon8()");
 //basic_ideal="simple_test_ideal()";
@@ -357,7 +362,7 @@ basic_ideal=fb("cyclicn(6)");
 //test_kgb(basic_ideal, "sba(i,1,0)");
 //test_kgb(basic_ideal, "sba(i,0,0)");
 //test_kgb(basic_ideal, "sba(i,1,1)");
-test_kgb(basic_ideal, "ssg_cpp(i)");
+//test_kgb(basic_ideal, "ssg_cpp(i)");
 test_kgb(basic_ideal, "ssg_sing(i)");
 //test_kgb(basic_ideal, "sba(i,0,0)");
 //test_kgb(basic_ideal, "sba(i,1,0)");
